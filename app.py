@@ -3,36 +3,45 @@ import cv2
 import mediapipe as mp
 import joblib
 import numpy as np
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, RTCConfiguration
+from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, WebRtcMode
+import av
 
-# Load trained model
+# Load model
 clf = joblib.load("attention_model_2.pkl")
 
-# Mediapipe setup
+# Mediapipe FaceMesh (reduce complexity if needed)
 mp_face_mesh = mp.solutions.face_mesh
 face_mesh = mp_face_mesh.FaceMesh(
-    static_image_mode=False,
     max_num_faces=1,
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5
 )
 
-st.title("🎯 Real-Time Attention Detection")
-st.markdown("Live webcam-based attention monitoring using Mediapipe FaceMesh + ML model.")
+st.title("🎯 Real-Time Attention Detection (Optimized)")
+st.markdown("Smooth live detection with frame skipping & async processing")
 
-# WebRTC Config
-RTC_CONFIGURATION = RTCConfiguration(
-    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-)
+# ICE config
+rtc_configuration = {
+    "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+}
 
 class VideoProcessor(VideoProcessorBase):
+    def __init__(self):
+        self.frame_count = 0  # for frame skipping
+
     def recv(self, frame):
         img = frame.to_ndarray(format="bgr24")
         rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        results = face_mesh.process(rgb)
 
         label = "No Face"
         color = (255, 255, 255)
+
+        # Skip every 2 frames for speed
+        self.frame_count += 1
+        if self.frame_count % 3 != 0:
+            return av.VideoFrame.from_ndarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), format="rgb24")
+
+        results = face_mesh.process(rgb)
 
         if results.multi_face_landmarks:
             row = []
@@ -52,12 +61,14 @@ class VideoProcessor(VideoProcessorBase):
             cv2.putText(img, label, (50, 50),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
 
-        return img
+        return av.VideoFrame.from_ndarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), format="rgb24")
 
-# Start WebRTC streamer
+# Start stream
 webrtc_streamer(
     key="attention-detection",
+    mode=WebRtcMode.SENDRECV,
     video_processor_factory=VideoProcessor,
-    rtc_configuration=RTC_CONFIGURATION,
-    media_stream_constraints={"video": True, "audio": False}
+    rtc_configuration=rtc_configuration,
+    media_stream_constraints={"video": True, "audio": False},
+    async_processing=True,
 )
