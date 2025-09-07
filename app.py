@@ -4,7 +4,6 @@ import mediapipe as mp
 import joblib
 import numpy as np
 from PIL import Image
-import tempfile
 
 # Load trained model
 clf = joblib.load("attention_model_2.pkl")
@@ -18,82 +17,40 @@ face_mesh = mp_face_mesh.FaceMesh(
     min_tracking_confidence=0.5
 )
 
-st.title("🎯 Smart Attentiveness Checker")
-st.markdown("Upload an **image or video** to check attentiveness using Mediapipe + ML model.")
+st.title("🎯 Real-Time Attention Detection")
+st.markdown("Webcam-based attention monitoring using Mediapipe FaceMesh + ML model.")
 
-# File uploader
-uploaded_file = st.file_uploader("Upload Image/Video", type=["jpg", "jpeg", "png", "mp4", "avi", "mov"])
+# Camera input
+camera_input = st.camera_input("📷 Turn on your camera")
 
-if uploaded_file is not None:
-    file_type = uploaded_file.type
+if camera_input:
+    # Convert to CV2 image
+    image = Image.open(camera_input)
+    frame = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
-    # Handle image files
-    if "image" in file_type:
-        img = Image.open(uploaded_file).convert("RGB")
-        frame = np.array(img)
-        rgb = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        results = face_mesh.process(rgb)
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    results = face_mesh.process(rgb)
 
-        label = "No Face"
-        color = (255, 255, 255)
+    label = "No Face"
+    color = (255, 255, 255)
 
-        if results.multi_face_landmarks:
-            row = []
-            for lm in results.multi_face_landmarks[0].landmark:
-                row += [lm.x, lm.y, lm.z]
+    if results.multi_face_landmarks:
+        row = []
+        for lm in results.multi_face_landmarks[0].landmark:
+            row += [lm.x, lm.y, lm.z]
 
-            row = np.array(row).reshape(1, -1)
-            pred = clf.predict(row)[0]
+        row = np.array(row).reshape(1, -1)
+        pred = clf.predict(row)[0]
 
-            if pred == 0:
-                label = "ATTENTIVE"
-                color = (0, 255, 0)
-            else:
-                label = "DROWSY"
-                color = (0, 0, 255)
+        if pred == 0:
+            label = "ATTENTIVE"
+            color = (0, 255, 0)
+        else:
+            label = "DROWSY"
+            color = (0, 0, 255)
 
-            cv2.putText(frame, label, (50, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+        cv2.putText(frame, label, (50, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
 
-        st.image(frame, channels="RGB", caption=f"Prediction: {label}")
-
-    # Handle video files
-    elif "video" in file_type:
-        tfile = tempfile.NamedTemporaryFile(delete=False)
-        tfile.write(uploaded_file.read())
-
-        cap = cv2.VideoCapture(tfile.name)
-        stframe = st.empty()
-
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = face_mesh.process(rgb)
-
-            label = "No Face"
-            color = (255, 255, 255)
-
-            if results.multi_face_landmarks:
-                row = []
-                for lm in results.multi_face_landmarks[0].landmark:
-                    row += [lm.x, lm.y, lm.z]
-
-                row = np.array(row).reshape(1, -1)
-                pred = clf.predict(row)[0]
-
-                if pred == 0:
-                    label = "ATTENTIVE"
-                    color = (0, 255, 0)
-                else:
-                    label = "DROWSY"
-                    color = (0, 0, 255)
-
-                cv2.putText(frame, label, (50, 50),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
-
-            stframe.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), channels="RGB")
-
-        cap.release()
+    # Show processed frame
+    st.image(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
