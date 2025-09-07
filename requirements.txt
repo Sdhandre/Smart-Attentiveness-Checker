@@ -5,5 +5,5 @@ numpy
 joblib
 protobuf
 scikit-learn
-streamlit_webrtc
+streamlit-webrtc
 
