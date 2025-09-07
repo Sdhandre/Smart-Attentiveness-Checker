@@ -1,6 +1,6 @@
-streamlit==1.37.0
-opencv-python-headless==4.9.0.80
-mediapipe==0.10.9
-numpy==1.26.4
-joblib==1.4.2
-protobuf==3.20.3
+streamlit
+opencv-python
+mediapipe
+numpy
+joblib
+protobuf
